@@ -1,0 +1,139 @@
+-- GLOBAL PERSISTENT LEADERBOARD SYSTEM
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+
+-- DataStore for global high scores
+local GlobalScoresStore = DataStoreService:GetOrderedDataStore("GlobalHighScores_v1")
+
+-- Get shared GameData
+local GameData = require(game.ServerScriptService:WaitForChild("GameData"))
+local playerHighScores = GameData.playerHighScores
+
+-- Cache for top scores (to reduce DataStore calls)
+local topScoresCache = {}
+local lastCacheUpdate = 0
+local CACHE_REFRESH_TIME = 30 -- Refresh every 30 seconds
+
+-- Function to save a player's high score to global leaderboard
+local function saveGlobalScore(userId, playerName, score)
+	local success, errorMessage = pcall(function()
+		-- Save with username prefix so we can retrieve name later
+		-- Format: "PlayerName_Score"
+		local key = "Player_" .. tostring(userId)
+		GlobalScoresStore:SetAsync(key, score)
+		print("✅ Saved global score for", playerName, ":", score)
+	end)
+
+	if not success then
+		warn("❌ Failed to save global score:", errorMessage)
+	end
+end
+
+-- Function to get top 5 global scores
+local function getTopGlobalScores()
+	local topScores = {}
+
+	local success, errorMessage = pcall(function()
+		-- Get top 5 scores in descending order
+		local pages = GlobalScoresStore:GetSortedAsync(false, 5)
+		local data = pages:GetCurrentPage()
+
+		for rank, entry in ipairs(data) do
+			local userId = tonumber(string.match(entry.key, "%d+"))
+			local score = entry.value
+
+			-- Try to get player name
+			local playerName = "Player"
+			local player = Players:GetPlayerByUserId(userId)
+			if player then
+				playerName = player.Name
+			else
+				-- Try to get name from Roblox if player not in game
+				local success2, result = pcall(function()
+					return Players:GetNameFromUserIdAsync(userId)
+				end)
+				if success2 then
+					playerName = result
+				end
+			end
+
+			table.insert(topScores, {
+				Rank = rank,
+				UserId = userId,
+				Name = playerName,
+				Score = score
+			})
+		end
+	end)
+
+	if not success then
+		warn("❌ Failed to get global scores:", errorMessage)
+	end
+
+	return topScores
+end
+
+-- Function to update the cached top scores
+local function updateTopScoresCache()
+	local now = tick()
+	if now - lastCacheUpdate < CACHE_REFRESH_TIME then
+		return topScoresCache -- Use cached data
+	end
+
+	print("🔄 Refreshing global leaderboard cache...")
+	topScoresCache = getTopGlobalScores()
+	lastCacheUpdate = now
+
+	return topScoresCache
+end
+
+-- Monitor player high scores and save to global leaderboard
+local function monitorPlayerScore(player)
+	local userId = player.UserId
+	local lastSavedScore = 0
+
+	while player.Parent do
+		wait(2) -- Check every 2 seconds
+
+		local currentHighScore = playerHighScores[userId] or 0
+
+		-- If player beat their previous saved score, save it globally
+		if currentHighScore > lastSavedScore then
+			saveGlobalScore(userId, player.Name, currentHighScore)
+			lastSavedScore = currentHighScore
+		end
+	end
+end
+
+-- When player joins, start monitoring their score
+Players.PlayerAdded:Connect(function(player)
+	print("👤 Monitoring global scores for:", player.Name)
+
+	-- Load their previous global high score (optional)
+	local success, savedScore = pcall(function()
+		local key = "Player_" .. tostring(player.UserId)
+		return GlobalScoresStore:GetAsync(key) or 0
+	end)
+
+	if success and savedScore > 0 then
+		print("📊 Loaded previous global score for", player.Name, ":", savedScore)
+	end
+
+	-- Start monitoring in a separate thread
+	task.spawn(function()
+		monitorPlayerScore(player)
+	end)
+end)
+
+-- Initial cache update
+updateTopScoresCache()
+
+-- Expose function for leaderboard to use
+_G.GetGlobalTopScores = updateTopScoresCache
+
+print("✅ Global Leaderboard System Loaded!")
+
+
+
+
