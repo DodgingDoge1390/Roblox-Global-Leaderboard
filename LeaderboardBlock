@@ -1,0 +1,105 @@
+-- Script inside LeaderboardBlock - GLOBAL VERSION
+local part = script.Parent
+local Players = game:GetService("Players")
+
+-- Wait for the global leaderboard system to load
+wait(2)
+
+-- Make SurfaceGui
+local surfaceGui = Instance.new("SurfaceGui")
+surfaceGui.Face = Enum.NormalId.Front
+surfaceGui.AlwaysOnTop = true
+surfaceGui.Adornee = part
+surfaceGui.Parent = part
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(1, 0, 1, 0)
+frame.BackgroundTransparency = 1
+frame.Parent = surfaceGui
+
+-- Add title
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🌍 GLOBAL TOP SCORES 🌍"
+titleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+titleLabel.TextStrokeTransparency = 0
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextScaled = true
+titleLabel.Parent = frame
+
+-- Container for scores
+local scoresFrame = Instance.new("Frame")
+scoresFrame.Size = UDim2.new(1, 0, 0.85, 0)
+scoresFrame.Position = UDim2.new(0, 0, 0.15, 0)
+scoresFrame.BackgroundTransparency = 1
+scoresFrame.Parent = frame
+
+-- Medal colors
+local MEDAL_COLORS = {
+	Color3.fromRGB(255, 215, 0),   -- 1st: Gold
+	Color3.fromRGB(192, 192, 192), -- 2nd: Silver
+	Color3.fromRGB(205, 127, 50),  -- 3rd: Bronze
+}
+local DEFAULT_COLOR = Color3.fromRGB(255, 255, 255) -- 4th+: White
+
+-- Medal emojis
+local MEDAL_EMOJIS = {
+	"🥇", -- 1st: Gold medal
+	"🥈", -- 2nd: Silver medal
+	"🥉", -- 3rd: Bronze medal
+}
+
+-- Update leaderboard function
+local function updateLeaderboard()
+	scoresFrame:ClearAllChildren()
+
+	-- Get global top scores
+	local topScores = {}
+	if _G.GetGlobalTopScores then
+		topScores = _G.GetGlobalTopScores()
+	end
+
+	-- Display top 5
+	for i = 1, math.min(5, #topScores) do
+		local entry = topScores[i]
+
+		-- Get color based on position
+		local textColor = MEDAL_COLORS[i] or DEFAULT_COLOR
+
+		-- Get medal emoji for top 3, or just number for others
+		local prefix = MEDAL_EMOJIS[i] or (i .. ".")
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, -10, 0.2, -5)
+		label.Position = UDim2.new(0, 5, (i-1) * 0.2, 0)
+		label.BackgroundTransparency = 1
+		label.Text = prefix .. " " .. entry.Name .. ": " .. entry.Score
+		label.TextColor3 = textColor
+		label.TextStrokeTransparency = 0
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = scoresFrame
+	end
+
+	-- Show message if no scores yet
+	if #topScores == 0 then
+		local emptyLabel = Instance.new("TextLabel")
+		emptyLabel.Size = UDim2.new(1, 0, 1, 0)
+		emptyLabel.BackgroundTransparency = 1
+		emptyLabel.Text = "No global scores yet!\nBe the first to set a record!"
+		emptyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+		emptyLabel.TextStrokeTransparency = 0
+		emptyLabel.Font = Enum.Font.Gotham
+		emptyLabel.TextScaled = true
+		emptyLabel.Parent = scoresFrame
+	end
+end
+
+-- Update every 5 seconds (less frequent since we're using cache)
+while true do
+	updateLeaderboard()
+	wait(5)
+end
